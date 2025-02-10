@@ -4,10 +4,12 @@
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include "WiFi.h"
+#include <WiFi.h>
+#include "time.h"
+#include <string>
 
-#define AWS_IOT_PUBLISH_TOPIC   "esp32/pub" //Topico en el que se publice
-#define AWS_IOT_SUBSCRIBE_TOPIC "esp32/sub" //Topico al que se suscribe
+#define AWS_IOT_PUBLISH_TOPIC   "esp32/pub"
+#define AWS_IOT_SUBSCRIBE_TOPIC "esp32/sub"
 
 WiFiClientSecure net = WiFiClientSecure();
 PubSubClient client(net);
@@ -78,12 +80,43 @@ void connectAWS() {
   Serial.println("AWS IoT Connected!");
 }
 
-void publishMessage(int metricsValue) {
-  StaticJsonDocument<200> doc;
-  doc["metrics"] = metricsValue;
+void publishMessage(float sensor101Value, float sensor102Value) {
+  StaticJsonDocument<512> doc;
+  time_t tiempo = time(NULL);
+  // Datos de Asset y Property
+  doc["assetId"] = "e6b980cc-84c3-4875-a586-4560dcf620c1";
+  doc["propertyId"] = "adc78532-4ed8-4ace-9f53-83a0f72423cd";
 
+  // Metrics
+  JsonObject metrics = doc.createNestedObject("metrics");
+  metrics["sensor101Value"] = sensor101Value;
+  metrics["sensor102Value"] = sensor102Value;
+
+  
+  
+  // Crear el objeto "timestamp"
+  JsonObject timestamp = doc.createNestedObject("timestamp");
+  timestamp["timeInSeconds"] = tiempo;
+  timestamp["offsetInNanos"] = 0;
+
+  
+  
+  // Serializar el JSON a buffer
   char jsonBuffer[512];
   serializeJson(doc, jsonBuffer);
- 
+
+  // Publicar el mensaje en el tópico
   client.publish(AWS_IOT_PUBLISH_TOPIC, jsonBuffer);
+}
+
+bool getBoolValue(String json, String key) {
+    int pos = json.indexOf(key);
+    if (pos != -1) {
+        int valuePos = json.indexOf(":", pos) + 1;
+        while (valuePos < json.length() && (json[valuePos] == ' ' || json[valuePos] == '\"')) {
+            valuePos++; // Saltar espacios y comillas
+        }
+        return json.substring(valuePos, valuePos + 4) == "true"; // Comparar con "true"
+    }
+    return false; // Si no se encuentra la clave, retornar false
 }
